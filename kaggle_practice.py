@@ -1,6 +1,7 @@
 #RMSE
 from sklearn.metrics import mean_squared_error
 import numpy as np
+import pandas as pd
 
 y_true = [1.0,2.0,1.5,5.0,1.4]
 y_pred = [1.0,1.9,1.3,3.4,1.2]
@@ -64,3 +65,73 @@ y_pred = np.array([[0.68,0.32,0.00],
                    [0.28,0.12,0.60]])
 logloss = log_loss(y_true,y_pred)
 print(logloss)
+
+from sklearn.metrics import f1_score
+
+y_true = np.array([[1,1,0],
+                   [1,0,0],
+                   [1,1,1],
+                   [0,1,1],
+                   [0,0,1]])
+
+y_pred = np.array([[1,0,1],
+                   [0,1,0],
+                   [1,0,1],
+                   [0,0,1],
+                   [0,0,1]])
+
+#mean_f1ではレコードごとにF1-scoreを計算
+mean_f1 = np.mean(f1_score(y_true[i,:],y_pred[i,:]) for i in range(len(y_true)))
+
+#macro_f1ではクラスごとにF1-scoreを計算
+n_class = 3
+macro_f1 = np.mean([f1_score(y_true[:,c],y_pred[:,c]) for c in range(len(n_class))])
+
+#micro-f1ではレコード×クラスのペアごとにTP/TN/FP/FNを計算してF1-scoreを計算する
+micro_f1 = f1_score(y_true.reshape(-1),y_pred.reshape(-1))
+
+#sklearnのメソッドを使えば簡単
+mean_f1 = f1_score(y_true, y_pred, average='samples')
+macro_f1 = f1_score(y_true, y_pred, average='macro')
+micro_f1 = f1_score(y_true, y_pred, average='micro')
+
+from sklearn.metrics import confusion_matrix, cohen_kappa_score
+
+def quadratic_weight_kappa(c_matrix):
+    numer = 0.0
+    denom = 0.0
+
+    for i in range(c_matrix.shape[0]): #0は縦方向
+        for j in range(c_matrix.shape[1]): #１は横方向
+            n = c_matrix.shape[0]
+            wij = ((i - j) ** 2.0)
+            oij = c_matrix[i,j]
+            eij = c_matrix[i:j].sum() * c_matrix[:, j].sum() / c_matrix.sum()
+            numer += wij * oij
+            denom += wij * eij
+    return 1.0 - numer /denom
+
+y_true = [1, 2, 3, 4, 3]
+y_pred = [2, 2, 4, 4, 5]
+
+c_matrix = confusion_matrix(y_true, y_pred, labels=[1,2,3,4,5])
+
+kappa = quadratic_weight_kappa(c_matrix)
+
+kappa = cohen_kappa_score(y_true, y_pred, weights='quadratic')
+
+
+
+
+
+
+#欠損値を表す文字が格納されているときの対処
+train = pd.read_csv('train_csv', na_values=['',' NA', -1, 9999])
+
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+scaler.fit(train_x[num_cols])
+
+train_x[num_cols] = scaler.transform(train_x[num_cols])
+test_x[num_cols] = scaler.transform(test_x[num_cols])
