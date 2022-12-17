@@ -10,15 +10,15 @@ import matplotlib.pyplot as plt
 import time
 import os
 import copy
-from nptyping import NDArray, Shape, Float
-from typing import Union, List
+from nptyping import NDArray, Shape, Float, Int0
+from typing import Union, List, Dict, Optional
 
 
-def imshow(inp, title: List[str]) -> None:
+def imshow(inp: Union[torch.Tensor,NDArray[Shape["Any,Any"],Float]], title: Union[List[str],Optional[str]]=None) -> None:
     
     inp = inp.numpy().transpose((1,2,0))    #Pytorchにおいては基本的にテンソルは[Channel, Height, Width]の三次元で考える
-    mean: NDArray[Shape["3, 1"], float] = np.array([0.485, 0.456, 0.406])
-    std: NDArray[Shape["3, 1"], float] = np.array([0.229, 0.224, 0.225])
+    mean: NDArray[Shape["3, 1"], Float] = np.array([0.485, 0.456, 0.406])
+    std: NDArray[Shape["3, 1"], Float] = np.array([0.229, 0.224, 0.225])
     inp = std * inp + mean
     inp = np.clip(inp, 0, 1)    #第一引数が処理する配列、第二引数が最小値、第三引数が最大値である。配列の要素を最小値と最大値の間に収まるようにする
     plt.imshow(inp)    #imshowはmatplotlib.pyplotの関数で画像を表示する。
@@ -26,12 +26,12 @@ def imshow(inp, title: List[str]) -> None:
         plt.title(title)
     plt.pause(0.001)
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs: int=25):
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()    #time.time()は現在時刻を取得できる 1670915199.4533744
 
     #=演算子でのコピーは全く同一のオブジェクトIDで同じオブジェクトなのでコピーされた側の変更はコピーした側にも反映される。copy(浅いコピー)はappendなどでは反映されないが、共通して持っている要素への変更は反映される。深いコピーは全く別のオブジェクトを作る。
     best_model_wts = copy.deepcopy(model.state_dict())    #model.state_dict()はモデルのweightやbias、その他、lrやmomentumといった情報を出力する
-    best_acc = 0.0
+    best_acc: float = 0.0
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch}/{num_epochs - 1}')
@@ -44,7 +44,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs: int=25):
                 model.eval()    #モデルを検証用にする。Batch NormalizationとDropoutを無効にする(というのもBatch NormalizationやDropoutはあくまで学習時のテクニックであって検証には必要ないから)
 
             running_loss: float = 0.0
-            running_corrects: float = 0.0
+            running_corrects: Union[torch.Tensor,int] = 0
 
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
@@ -55,7 +55,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs: int=25):
                 with torch.set_grad_enabled(phase == 'train'):    #勾配計算をするかどうかのスイッチ(訓練時にはするという設定)
                     outputs = model(inputs)
                     _, preds = torch.max(outputs, 1)    #Tensor配列の最大値を返す
-                    loss = criterion(outputs, labels)    #lossの計算
+                    loss = criterion(outputs, labels)    #batchlossの平均からepochlossの計算
 
                     if phase == 'train':
                         loss.backward()    #backwardはrequires_grad=Trueとした変数に対して目的の関数に対しての微分を行ったときの勾配の計算ができる。
@@ -85,10 +85,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs: int=25):
     model.load_state_dict(best_model_wts)
     return model
 
-def visualize_model(model, num_images=6):
+def visualize_model(model, num_images=6) -> None:
     was_training = model.training
     model.eval()
-    images_so_far = 0
+    images_so_far: float = 0
     fig = plt.figure()
 
     with torch.no_grad():    #このコードのネストの中はrequires_grad=Falseとなって計算されなくなる
@@ -132,21 +132,21 @@ if __name__ == '__main__':
         ]),
     }
 
-    data_dir = 'hymenoptera_data'
+    data_dir: str = 'hymenoptera_data'
     image_datasets = {x: datasets.ImageFolder(data_dir,
                                             data_transforms[x])
                                             for x in ['train', 'val']}
     dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
                                                 shuffle=True, num_workers=4)    #DataloaderはDatasetからサンプルを取得してミニバッチを作成する。サンプルを取得するDatasetとバッチサイズを指定する。DataLoadeはiterateするとミニバッチを返す。
                     for x in ['train', 'val']}
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-    class_names = image_datasets['val'].classes
+    dataset_sizes: Dict[str,int] = {x: len(image_datasets[x]) for x in ['train', 'val']}
+    class_names: List[str] = image_datasets['val'].classes
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     inputs, classes = next(iter(dataloaders['train']))
 
-    out = torchvision.utils.make_grid(inputs)    #複数の画像をグリッド状に並べた画像を作成できる。(ただし直接的に画像ではなく、返り値はテンソル)
+    out: torch.Tensor = torchvision.utils.make_grid(inputs)    #複数の画像をグリッド状に並べた画像を作成できる。(ただし直接的に画像ではなく、返り値はテンソル)
     imshow(out, title=[class_names[x] for x in classes])
 
     model_ft = models.resnet18(weights=True)    #事前に訓練されたWeightを使用する
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     visualize_model(model_ft)
 
     model_ft = models.resnet18(pretrained=True)    #resnet18 の最下層の出力次数を取得している
-    num_ftrs = model_ft.fc.in_features    #出力サイズが２になるようにしている   
+    num_ftrs; int = model_ft.fc.in_features    #出力サイズが２になるようにしている   
    
     model_ft.fc = nn.Linear(num_ftrs, 2)
 
